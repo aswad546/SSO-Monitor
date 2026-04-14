@@ -8,21 +8,21 @@ import torch
 import threading
 
 # Import OpenAI client for vLLM Serve style connection.
+import base64
+import os
 from openai import OpenAI
 
-# Logging setup
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.basicConfig(level=logging.INFO)
 
 logger.info("Loading the crawler_backend")
 
-# ---- vLLM Serve / OpenAI Setup ----
-API_KEY = "token-abc123"
 client = OpenAI(
-    api_key=API_KEY,
-    base_url="http://127.0.0.1:8002/v1",
+    api_key=os.environ.get("OS_ATLAS_API_KEY", "token-abc123"),
+    base_url=os.environ.get("OS_ATLAS_BASE_URL", "http://127.0.0.1:8002/v1"),
 )
+MODEL_NAME = os.environ.get("OS_ATLAS_MODEL", "OS-Copilot/OS-Atlas-Base-7B")
 
 # Socket server configuration
 HOST = '0.0.0.0'
@@ -121,11 +121,12 @@ Guidelines:
 """
                 )
 
-            # Convert image path to a URL.
-            image_url = convert_path_to_url(img_path)
-            if image_url is None:
-                error_msg = "Error: Could not convert image path to URL."
-                conn.sendall(error_msg.encode('utf-8'))
+            # Encode image as base64 data URI for remote vLLM.
+            try:
+                with open(img_path, "rb") as f:
+                    image_url = "data:image/png;base64," + base64.b64encode(f.read()).decode()
+            except Exception as e:
+                conn.sendall(f"Error reading image: {e}".encode('utf-8'))
                 continue
 
             # Build messages payload in the expected format.
@@ -141,7 +142,7 @@ Guidelines:
             start_time = time.time()
             try:
                 chat_response = client.chat.completions.create(
-                    model="OS-Copilot/OS-Atlas-Base-7B",
+                    model=MODEL_NAME,
                     messages=messages,
                     max_tokens=512,
                     temperature=0.01,

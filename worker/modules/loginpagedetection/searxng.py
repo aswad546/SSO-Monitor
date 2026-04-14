@@ -3,7 +3,7 @@ import logging
 import requests
 from urllib.parse import quote
 from modules.helper.url import URLHelper
-import socket
+from modules import vlm_client
 import time
 import os
 from playwright.sync_api import sync_playwright, Error, TimeoutError, Page
@@ -33,26 +33,16 @@ class Searxng:
         self.resolved_tld = URLHelper.get_tld(self.resolved_domain)
     
 
-    def classify_screenshot(self, screenshot_path: str, classification_host: str = '172.17.0.1', classification_port: int = 5060, no_save: bool = True) -> str:
+    def classify_screenshot(self, screenshot_path: str, **_unused) -> str:
         start_time = time.time()
         try:
-            with socket.create_connection((classification_host, classification_port), timeout=120) as sock:
-                logger.info(f"Connected to classification server for {screenshot_path}")
-                # Build the message: if no_save is True, append the flag.
-                message = screenshot_path
-                if no_save:
-                    message += " noSave"
-                # Send the message followed by a newline.
-                sock.sendall((message + "\n").encode())
-                response = sock.recv(1024).decode().strip()
-                logger.info(f"Received classification response for {screenshot_path}: {response}")
-                return response
-        except Exception as e:
-            logger.error(f"Socket error while classifying {screenshot_path}: {e}")
-            raise e
+            is_login = vlm_client.classify_login_page(screenshot_path)
+            return "YES" if is_login else "NO"
+        except vlm_client.VLMUnavailable as e:
+            logger.warning(f"VLM classify unavailable for {screenshot_path}: {e}")
+            return "NO"
         finally:
-            duration = time.time() - start_time
-            logger.info(f"Classification request for {screenshot_path} took {duration:.2f} seconds")
+            logger.info(f"Classification for {screenshot_path} took {time.time() - start_time:.2f}s")
 
 
     def get_screenshot(self, page_url: str) -> str:

@@ -1,6 +1,5 @@
 import logging
 import subprocess
-import socket
 import time
 import json
 import os

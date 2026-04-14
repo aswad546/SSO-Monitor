@@ -159,8 +159,8 @@ async function classifyScreenshot(screenshotPath) {
     
     try {
       const result = await new Promise((resolve, reject) => {
-        const classificationHost = '172.17.0.1'; // adjust if necessary
-        const classificationPort = 5060; // port where your classification server is running
+        const classificationHost = process.env.CLASSIFICATION_HOST || '172.17.0.1';
+        const classificationPort = parseInt(process.env.CLASSIFICATION_PORT || '5060');
         
         socket = new net.Socket();
         
@@ -871,8 +871,8 @@ async function runCrawler(url) {
     span.setAttribute('url', url);
     
     const crawlStartTime = Date.now();
-    const HOST = '172.17.0.1';
-    const PORT = 5000;
+    const HOST = process.env.VLLM_BACKEND_HOST || '172.17.0.1';
+    const PORT = parseInt(process.env.VLLM_BACKEND_PORT || '5000');
     let client;
     let browser;
 

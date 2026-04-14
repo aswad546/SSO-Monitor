@@ -1,20 +1,20 @@
 import os
+import base64
 import shutil
 import socket
 import logging
 import re
 import threading
-from openai import OpenAI  # Import the new OpenAI client
+from openai import OpenAI
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure OpenAI client to use your vLLM Serve instance.
 client = OpenAI(
-    api_key="token-abc123",
-    base_url="http://localhost:8000/v1",
+    api_key=os.environ.get("QWEN_API_KEY", "token-abc123"),
+    base_url=os.environ.get("QWEN_BASE_URL", "http://localhost:8000/v1"),
 )
+QWEN_MODEL = os.environ.get("QWEN_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct")
 
 # The prompt text to send to the model.
 PROMPT_TEXT = """
@@ -116,7 +116,7 @@ def classify_image(image_url: str) -> (str, str):
     ]
     try:
         chat_response = client.chat.completions.create(
-            model="Qwen/Qwen2.5-VL-7B-Instruct",
+            model=QWEN_MODEL,
             messages=messages,
             max_tokens=512,
         )
@@ -132,14 +132,12 @@ def classify_image(image_url: str) -> (str, str):
         return None, None
 
 def process_image(input_path: str) -> (str, str):
-    """
-    Given a local input path, convert it to a URL for classification, send the request,
-    and return the final answer and full response.
-    """
-    image_url = convert_path_to_url(input_path)
-    if image_url is None:
+    try:
+        with open(input_path, "rb") as f:
+            image_url = "data:image/png;base64," + base64.b64encode(f.read()).decode()
+    except Exception as e:
+        logger.error(f"Error reading image {input_path}: {e}")
         return None, None
-    logger.info(f"Using image URL: {image_url}")
     return classify_image(image_url)
 
 def handle_client(conn, addr):

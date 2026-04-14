@@ -16,6 +16,7 @@ nested-lookup = "*"
 jsonschema = "*"
 python-dateutil = "*"
 url-normalize = "*"
+openai = "*"
 
 [dev-packages]
 

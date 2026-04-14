@@ -1,3 +1,4 @@
+import os
 import pika
 import logging
 import json
@@ -159,43 +160,38 @@ class RabbitHelper:
 
     def send_candidates_to_api(candidates, task_id):
         """
-        Send the preprocessed login candidates to a remote API endpoint.
-        'candidates' should be a Python list/dict that can be serialized to JSON.
-        
+        Send each preprocessed login candidate directly to VV8's urlsubmit-actions endpoint.
         Returns a tuple: (success: bool, status_code: int, error_detail: str or None)
         """
-        api_url = "http://172.17.0.1:4050/api/login_candidates"
-        payload = json.dumps({
-            "candidates": candidates, 
-            "task_id": task_id
-        })
-        
-        try:
-            response = requests.post(
-                api_url,
-                data=payload,
-                headers={'Content-Type': 'application/json'},
-            )
-            if response.status_code != 200:
-                error_detail = (f"API responded with status code {response.status_code}. "
-                                f"Response: {response.text}")
-                logger.warning("Failed to send candidates to API. %s", error_detail)
-                return False, response.status_code, error_detail
-        except requests.exceptions.ConnectionError as e:
-            error_detail = f"Connection error: {str(e)}"
-            logger.error("Connection error: API is down or unreachable. Error: %s", error_detail, exc_info=True)
-            return False, 0, error_detail
-        except requests.exceptions.Timeout as e:
-            error_detail = f"Timeout error: {str(e)}"
-            logger.error("Request timed out. API might be slow or down. Error: %s", error_detail, exc_info=True)
-            return False, 0, error_detail
-        except Exception as e:
-            error_detail = f"Unexpected error: {str(e)}"
-            logger.error("Unexpected error when sending candidates to API: %s", error_detail, exc_info=True)
-            return False, 0, error_detail
+        vv8_url = os.environ.get("VV8_SUBMIT_URL", "http://vv8-backend:4000/api/v1/urlsubmit-actions")
 
-        logger.info("Successfully sent login candidates to API at %s", api_url)
-        return True, response.status_code, None
+        last_status = 200
+        last_error = None
+        for candidate in candidates:
+            payload = {
+                "url": candidate["url"],
+                "actions": candidate.get("actions") or [],
+                "rerun": False,
+                "scan_domain": candidate.get("scan_domain", ""),
+                "task_id": task_id,
+                "parser_config": {"delete_log_after_parsing": False, "output_format": "postgresql"},
+            }
+            try:
+                r = requests.post(vv8_url, json=payload, timeout=30)
+                if r.status_code >= 400:
+                    last_status = r.status_code
+                    last_error = f"VV8 returned {r.status_code} for {candidate['url']}: {r.text[:200]}"
+                    logger.warning(last_error)
+                else:
+                    logger.info("Submitted %s to VV8", candidate["url"])
+            except Exception as e:
+                last_error = f"Error submitting {candidate['url']}: {e}"
+                logger.error(last_error)
+                return False, 0, last_error
+
+        if last_error:
+            return False, last_status, last_error
+        return True, 200, None
 
 
 
