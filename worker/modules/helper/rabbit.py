@@ -174,7 +174,7 @@ class RabbitHelper:
                 "rerun": False,
                 "scan_domain": candidate.get("scan_domain", ""),
                 "task_id": task_id,
-                "parser_config": {"delete_log_after_parsing": False, "output_format": "postgresql"},
+                "parser_config": {"parser": "flow", "delete_log_after_parsing": False, "output_format": "postgresql"},
             }
             try:
                 r = requests.post(vv8_url, json=payload, timeout=30)
